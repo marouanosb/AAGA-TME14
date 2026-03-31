@@ -5,9 +5,7 @@ import java.util.ArrayList;
 
 public class DefaultTeam {
 
-    // ---------------------------------------------------------
-    // CLASSE INTERNE : Gestion intelligente d'un groupe de points
-    // ---------------------------------------------------------
+    // Cluster Class pour gérer les groupes de points
     class Cluster {
         private ArrayList<Point> points = new ArrayList<>();
         private Point barycentre = new Point(0, 0);
@@ -46,9 +44,7 @@ public class DefaultTeam {
         public Point getBarycentre() { return barycentre; }
     }
 
-    // ---------------------------------------------------------
-    // ALGORITHME 1 : K-MEANS STANDARD (Objectif: Score minimal)
-    // ---------------------------------------------------------
+    // K-MEANS STANDARD
     public ArrayList<ArrayList<Point>> calculKMeans(ArrayList<Point> points) {
         int k = 5;
         if (points.size() < k) return new ArrayList<>();
@@ -99,9 +95,7 @@ public class DefaultTeam {
         return convertResult(clusters);
     }
 
-    // ---------------------------------------------------------
-    // ALGORITHME 2 : K-MEANS BUDGET (Objectif: Max de points)
-    // ---------------------------------------------------------
+    // K-MEANS BUDGET (Objectif: Max de points)
     public ArrayList<ArrayList<Point>> calculKMeansBudget(ArrayList<Point> points) {
         int k = 5;
         double budgetMax = 10101.0;
@@ -123,7 +117,7 @@ public class DefaultTeam {
             int targetClusterIdx = -1;
             double minImpact = Double.MAX_VALUE;
 
-            // Heuristique : chercher le point dont l'ajout coûte le moins de budget
+            // chercher le point dont l'ajout coûte le moins de budget
             for (Point p : remaining) {
                 for (int i = 0; i < k; i++) {
                     Cluster c = clusters.get(i);
@@ -139,7 +133,7 @@ public class DefaultTeam {
                             targetClusterIdx = i;
                         }
                     }
-                    // Annulation de la simulation
+                    // Annulation
                     c.removeLastPoint();
                 }
             }
