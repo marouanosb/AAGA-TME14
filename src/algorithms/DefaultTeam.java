@@ -5,116 +5,113 @@ import java.util.ArrayList;
 
 public class DefaultTeam {
 
-    // --- CLASSE INTERNE POUR LA MODULARITÉ ---
-    class Cluster {
-        private ArrayList<Point> points = new ArrayList<>();
-        private Point barycentre = new Point(0, 0);
-
-        public void addPoint(Point p) { points.add(p); updateBarycentre(); }
-        public ArrayList<Point> getPoints() { return points; }
-        public Point getBarycentre() { return barycentre; }
-
-        public void updateBarycentre() {
-            if (points.isEmpty()) return;
-            long x = 0, y = 0;
-            for (Point p : points) { x += p.x; y += p.y; }
-            this.barycentre = new Point((int)(x/points.size()), (int)(y/points.size()));
-        }
-
-        public double getScore() {
-            double sum = 0;
-            for (Point p : points) sum += p.distance(barycentre);
-            return sum;
-        }
+    // --- UTILS ---
+    private double distance(Point p1, Point p2) {
+        return p1.distance(p2);
     }
 
-    // --- K-MEANS STANDARD (Optimisé) ---
+    private Point barycentre(ArrayList<Point> cluster) {
+        if (cluster.isEmpty()) return new Point(0, 0);
+        long sumX = 0, sumY = 0;
+        for (Point p : cluster) {
+            sumX += p.x;
+            sumY += p.y;
+        }
+        return new Point((int) (sumX / cluster.size()), (int) (sumY / cluster.size()));
+    }
+
+    private double totalDistance(ArrayList<Point> cluster) {
+        Point center = barycentre(cluster);
+        double sum = 0;
+        for (Point p : cluster) sum += distance(p, center);
+        return sum;
+    }
+
+    // --- K-MEANS STANDARD ---
     public ArrayList<ArrayList<Point>> calculKMeans(ArrayList<Point> points) {
         int k = 5;
-        ArrayList<Cluster> clusters = new ArrayList<>();
+        ArrayList<ArrayList<Point>> clusters = new ArrayList<>();
+        ArrayList<Point> centroids = new ArrayList<>();
+
         for (int i = 0; i < k; i++) {
-            Cluster c = new Cluster();
-            c.addPoint(points.get(i));
-            clusters.add(c);
+            centroids.add(points.get(i));
+            clusters.add(new ArrayList<Point>());
         }
 
         boolean changed = true;
-        while (changed) {
-            changed = false;
-            ArrayList<ArrayList<Point>> nextGroups = new ArrayList<>();
-            for (int i=0; i<k; i++) nextGroups.add(new ArrayList<>());
-
+        int maxIters = 50; 
+        while (changed && maxIters-- > 0) {
+            for (ArrayList<Point> cluster : clusters) cluster.clear();
             for (Point p : points) {
-                int best = 0;
-                double minDist = p.distance(clusters.get(0).getBarycentre());
-                for (int i=1; i<k; i++) {
-                    double d = p.distance(clusters.get(i).getBarycentre());
-                    if (d < minDist) { minDist = d; best = i; }
+                int bestK = 0;
+                double minDist = distance(p, centroids.get(0));
+                for (int i = 1; i < k; i++) {
+                    double d = distance(p, centroids.get(i));
+                    if (d < minDist) {
+                        minDist = d;
+                        bestK = i;
+                    }
                 }
-                nextGroups.get(best).add(p);
+                clusters.get(bestK).add(p);
             }
-
-            for (int i=0; i<k; i++) {
-                Point oldBary = clusters.get(i).getBarycentre();
-                clusters.get(i).getPoints().clear();
-                clusters.get(i).getPoints().addAll(nextGroups.get(i));
-                clusters.get(i).updateBarycentre();
-                if (!oldBary.equals(clusters.get(i).getBarycentre())) changed = true;
+            changed = false;
+            for (int i = 0; i < k; i++) {
+                if (clusters.get(i).isEmpty()) continue;
+                Point newCentroid = barycentre(clusters.get(i));
+                if (!newCentroid.equals(centroids.get(i))) {
+                    centroids.set(i, newCentroid);
+                    changed = true;
+                }
             }
         }
-
-        ArrayList<ArrayList<Point>> result = new ArrayList<>();
-        for (Cluster c : clusters) result.add(c.getPoints());
-        return result;
+        return clusters;
     }
 
     // --- K-MEANS BUDGET ---
     public ArrayList<ArrayList<Point>> calculKMeansBudget(ArrayList<Point> points) {
         int k = 5;
         double budget = 10101.0;
-        ArrayList<Cluster> clusters = new ArrayList<>();
-        
+        ArrayList<ArrayList<Point>> clusters = new ArrayList<>();
+
+        // Initialisation avec les membres fondateurs (s1...s5)
         for (int i = 0; i < k; i++) {
-            Cluster c = new Cluster();
-            c.addPoint(points.get(i));
-            clusters.add(c);
+            ArrayList<Point> cluster = new ArrayList<Point>();
+            cluster.add(points.get(i));
+            clusters.add(cluster);
         }
 
-        ArrayList<Point> rest = new ArrayList<>(points.subList(k, points.size()));
+        ArrayList<Point> remaining = new ArrayList<>(points.subList(k, points.size()));
+
         boolean added = true;
         while (added) {
             added = false;
-            Point bestP = null;
-            int bestC = -1;
-            double minCost = Double.MAX_VALUE;
+            Point bestPoint = null;
+            int bestClusterIdx = -1;
+            double minImpact = Double.MAX_VALUE;
 
-            for (Point p : rest) {
+            for (Point p : remaining) {
                 for (int i = 0; i < k; i++) {
-                    Cluster c = clusters.get(i);
-                    // Simulation
-                    c.getPoints().add(p);
-                    Point oldBary = c.getBarycentre();
-                    c.updateBarycentre();
-                    double score = c.getScore();
-
-                    if (score <= budget && score < minCost) {
-                        minCost = score;
-                        bestP = p;
-                        bestC = i;
+                    ArrayList<Point> current = clusters.get(i);
+                    current.add(p);
+                    double currentScore = totalDistance(current);
+                    
+                    if (currentScore <= budget) {
+                        if (currentScore < minImpact) {
+                            minImpact = currentScore;
+                            bestPoint = p;
+                            bestClusterIdx = i;
+                        }
                     }
-                    // Backtrack
-                    c.getPoints().remove(c.getPoints().size()-1);
-                    c.barycentre = oldBary; 
+                    current.remove(current.size() - 1); // Backtrack
                 }
             }
-            if (bestP != null) {
-                clusters.get(bestC).addPoint(bestP);
-                rest.remove(bestP);
+
+            if (bestPoint != null) {
+                clusters.get(bestClusterIdx).add(bestPoint);
+                remaining.remove(bestPoint);
                 added = true;
             }
         }
-        ArrayList<ArrayList<Point>> result = new ArrayList<>();
-        for (Cluster c : clusters) result.add(c.getPoints());
-        return result;
+        return clusters;
     }
 }
